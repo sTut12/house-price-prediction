@@ -1,0 +1,69 @@
+# 🚀 QUICK START GUIDE
+
+## 3-Minute Setup
+
+### 1. Open PowerShell/Command Prompt
+Press `Win + R`, type `cmd`, and press Enter.
+
+### 2. Navigate to Project
+```bash
+cd "c:\Users\stuti\Downloads\house price prediction"
+```
+
+### 3. Create & Activate Virtual Environment
+If your system default Python is 3.14, use Python 3.11 explicitly:
+
+```bash
+py -3.11 -m venv venv
+venv\Scripts\activate
+```
+
+### 4. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 5. Train Model
+```bash
+python train_model.py
+```
+Wait for it to complete (you'll see "✓ Model saved as 'model.pkl'")
+
+### 6. Run Web App
+```bash
+python app.py
+```
+
+### 7. Open Browser
+Go to: **http://localhost:5000**
+
+---
+
+## 🎯 NEXT TIME (Quick Start)
+
+You only need to do steps 2, 3, and 6 next time:
+
+```bash
+cd "c:\Users\stuti\Downloads\house price prediction"
+venv\Scripts\activate
+python app.py
+```
+
+Then visit: **http://localhost:5000**
+
+---
+
+## ⛔ STOP THE APP
+
+Press `CTRL + C` in the terminal
+
+---
+
+## 🆘 HELP
+
+- See **README.md** for detailed documentation
+- See **Troubleshooting** section in README.md for common issues
+
+---
+
+Enjoy predicting house prices! 🏠✨
