@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>House Price Prediction</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-shell">
+        <header class="hero">
+            <div class="hero-copy">
+                <p class="hero-subtitle">AI-powered real estate valuation engine</p>
+                <h1>House Price Prediction</h1>
+                <div class="badge-row">
+                    <span class="badge">ML Model v3.2</span>
+                    <span class="badge">50K+ properties</span>
+                    <span class="badge">94% accuracy</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="layout">
+            <section class="panel panel-left">
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="single">Single Property</button>
+                    <button class="tab-button" data-tab="compare">Compare Mode</button>
+                    <button class="tab-button" data-tab="market">Market Analysis</button>
+                </div>
+
+                <div class="tab-panels">
+                    <div id="single" class="tab-panel active">
+                        <form id="predictForm">
+                            <div class="form-grid">
+                                <div class="field-group">
+                                    <label for="location">Location Type</label>
+                                    <select id="location" required>
+                                        <option value="">Select location</option>
+                                        <option value="Urban">Urban</option>
+                                        <option value="Suburban">Suburban</option>
+                                        <option value="Rural">Rural</option>
+                                    </select>
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="cityArea">City / Area</label>
+                                    <input id="cityArea" type="text" placeholder="e.g., Mumbai, Delhi..." required />
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="singleArea">Area in sq ft</label>
+                                    <input id="singleArea" type="number" placeholder="1500" min="100" required />
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="pricePerSqft">Price per Sq Ft</label>
+                                    <input id="pricePerSqft" type="text" readonly value="--" class="readonly" />
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="singleBedrooms">Bedrooms</label>
+                                    <input id="singleBedrooms" type="number" placeholder="3" min="1" required />
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="singleBathrooms">Bathrooms</label>
+                                    <input id="singleBathrooms" type="number" placeholder="2" min="1" step="0.5" required />
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="yearBuilt">Year Built</label>
+                                    <input id="yearBuilt" type="number" placeholder="2015" min="1900" max="2026" required />
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="floorNumber">Floor Number</label>
+                                    <input id="floorNumber" type="number" placeholder="5" min="0" required />
+                                </div>
+                                <div class="field-group">
+                                    <label for="livingArea">Living Area (sq ft)</label>
+                                    <input id="livingArea" type="number" placeholder="1200" min="100" required />
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="singleKitchens">Number of Kitchens</label>
+                                    <input id="singleKitchens" type="number" placeholder="1" min="0" step="1" required />
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="balconyCount">Balcony Count</label>
+                                    <input id="balconyCount" type="number" placeholder="1" min="0" step="1" required />
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="parkingSpaces">Parking Spaces</label>
+                                    <input id="parkingSpaces" type="number" placeholder="1" min="0" step="1" required />
+                                </div>
+                            </div>
+
+                            <div class="section-divider"><span>Amenities</span></div>
+
+                            <div class="amenities-grid">
+                                <button type="button" class="amenity-chip" data-amenity="Parking">🚗 Parking</button>
+                                <button type="button" class="amenity-chip" data-amenity="Pool">🏊 Pool</button>
+                                <button type="button" class="amenity-chip" data-amenity="Garden">🌿 Garden</button>
+                                <button type="button" class="amenity-chip" data-amenity="Gym">🏋️ Gym</button>
+                                <button type="button" class="amenity-chip" data-amenity="Security">🛡️ Security</button>
+                                <button type="button" class="amenity-chip" data-amenity="Furnished">🛋️ Furnished</button>
+                                <button type="button" class="amenity-chip" data-amenity="Lift">🛗 Lift</button>
+                                <button type="button" class="amenity-chip" data-amenity="Solar">☀️ Solar</button>
+                            </div>
+
+                            <div class="actions-row">
+                                <label class="toggle-switch">
+                                    <input id="salesToggle" type="checkbox" />
+                                    <span class="slider"></span>
+                                    Include nearby sales data
+                                </label>
+                                <span class="market-weight" id="marketWeightLabel">Market weight: medium</span>
+                            </div>
+
+                            <button type="submit" class="button submit-button" id="predictSubmit">🔮 Predict Price</button>
+                        </form>
+                    </div>
+
+                    <div id="compare" class="tab-panel">
+                        <div class="compare-grid">
+                            <div class="mini-card">
+                                <h3>Property A</h3>
+                                <label>Area</label>
+                                <input id="compareAreaA" type="number" placeholder="1400" min="100" />
+                                <label>Bedrooms</label>
+                                <input id="compareBedsA" type="number" placeholder="3" min="1" />
+                            </div>
+                            <div class="mini-card">
+                                <h3>Property B</h3>
+                                <label>Area</label>
+                                <input id="compareAreaB" type="number" placeholder="1600" min="100" />
+                                <label>Bedrooms</label>
+                                <input id="compareBedsB" type="number" placeholder="4" min="1" />
+                            </div>
+                        </div>
+                        <button class="button submit-button" id="compareSubmit">Compare Both</button>
+                        <div id="comparisonResult" class="compare-result"></div>
+                    </div>
+
+                    <div id="market" class="tab-panel">
+                        <label class="field-label">Enter city or pin code</label>
+                        <input id="marketCity" type="text" placeholder="Mumbai, 400001..." />
+                        <button class="button submit-button" id="marketSubmit">Analyze Market</button>
+                    </div>
+                </div>
+            </section>
+
+            <aside class="panel results-panel">
+                <div class="result-card">
+                    <span class="small-label">PREDICTED PRICE</span>
+                    <h2 id="priceValue">$0</h2>
+                    <p class="muted" id="priceRange">Range: $0 – $0</p>
+                </div>
+
+                <div class="confidence-card">
+                    <div class="confidence-row">
+                        <span>AI Confidence</span>
+                        <span id="confidenceValue">--</span>
+                    </div>
+                    <div class="progress-track">
+                        <div id="confidenceFill" class="progress-fill"></div>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span>Price per sq ft</span>
+                        <strong id="ppsqft">$--</strong>
+                    </div>
+                    <div class="stat-card">
+                        <span>YoY growth</span>
+                        <strong id="yoyGrowth">--%</strong>
+                    </div>
+                    <div class="stat-card">
+                        <span>Avg. sell time</span>
+                        <strong id="avgSell">-- days</strong>
+                    </div>
+                    <div class="stat-card">
+                        <span>Investment score</span>
+                        <strong id="investScore">--/10</strong>
+                    </div>
+                </div>
+
+                <div class="trend-card">
+                    <div class="trend-header">
+                        <span>6-Month Trend</span>
+                        <span class="muted">Nov - Apr</span>
+                    </div>
+                    <div class="trend-grid">
+                        <div class="trend-bar"><span>Nov</span></div>
+                        <div class="trend-bar"><span>Dec</span></div>
+                        <div class="trend-bar"><span>Jan</span></div>
+                        <div class="trend-bar"><span>Feb</span></div>
+                        <div class="trend-bar"><span>Mar</span></div>
+                        <div class="trend-bar latest"><span>Apr</span></div>
+                    </div>
+                </div>
+
+                <div class="similar-card">
+                    <div class="section-header">
+                        <h3>Similar Properties</h3>
+                    </div>
+                    <div id="similarList" class="similar-list">
+                        <div class="similar-row placeholder">
+                            <div class="similar-icon">🏡</div>
+                            <div class="similar-meta">
+                                <strong>Modern Family Home</strong>
+                                <span>3 BR • 2 BA • 1800 sqft • Urban</span>
+                            </div>
+                            <div class="similar-price">$320,000</div>
+                        </div>
+                        <div class="similar-row placeholder">
+                            <div class="similar-icon">🏠</div>
+                            <div class="similar-meta">
+                                <strong>Suburban Villa</strong>
+                                <span>4 BR • 3 BA • 2200 sqft • Suburban</span>
+                            </div>
+                            <div class="similar-price">$295,000</div>
+                        </div>
+                        <div class="similar-row placeholder">
+                            <div class="similar-icon">🌿</div>
+                            <div class="similar-meta">
+                                <strong>Country Cottage</strong>
+                                <span>2 BR • 1 BA • 1200 sqft • Rural</span>
+                            </div>
+                            <div class="similar-price">$180,000</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="advisorCard" class="advisor-card hidden">
+                    <div class="section-header">
+                        <h3>AI Property Advisor</h3>
+                        <p class="muted">Gemini-generated recommendation for your property.</p>
+                    </div>
+                    <div class="advisor-grid">
+                        <div class="advisor-item">
+                            <strong>Price Explanation</strong>
+                            <p id="advisorExplanation">The AI advisor will explain the predicted price in simple language.</p>
+                        </div>
+                        <div class="advisor-item">
+                            <strong>Buying Recommendation</strong>
+                            <p id="advisorBuy">The assistant will recommend whether this property is a good buy now.</p>
+                        </div>
+                        <div class="advisor-item">
+                            <strong>Selling Recommendation</strong>
+                            <p id="advisorSell">The assistant will provide a selling strategy if this is the right time to sell.</p>
+                        </div>
+                        <div class="advisor-item">
+                            <strong>Investment Potential</strong>
+                            <p id="advisorInvestment">The AI advisor will describe long-term investment strength.</p>
+                        </div>
+                        <div class="advisor-item">
+                            <strong>Key Factors</strong>
+                            <ul id="advisorFactors">
+                                <li>Main factors are shown here after prediction.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <p id="advisorNote" class="advisor-note"></p>
+                </div>
+
+                <div id="marketAnalysisCard" class="market-card hidden">
+                    <h3 id="marketCityLabel">Market snapshot</h3>
+                    <div class="market-row">
+                        <span>Avg. price</span>
+                        <strong id="marketAvgPrice">$0</strong>
+                    </div>
+                    <div class="market-row">
+                        <span>Demand index</span>
+                        <strong id="marketDemand">--%</strong>
+                    </div>
+                    <div class="market-row">
+                        <span>Price trend</span>
+                        <strong id="marketTrend">--</strong>
+                    </div>
+                    <div class="market-row">
+                        <span>Top localities</span>
+                        <strong id="marketLocalities">--</strong>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

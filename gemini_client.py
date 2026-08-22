@@ -1,42 +1,102 @@
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-GOOGLE_GEMINI_API_KEY = os.getenv('GOOGLE_GEMINI_API_KEY', '').strip()
-GOOGLE_GEMINI_MODEL = os.getenv('GOOGLE_GEMINI_MODEL', 'gemini-pro-mini').strip()
-GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta2/models'
+GOOGLE_GEMINI_API_KEY = os.getenv(
+    "GOOGLE_GEMINI_API_KEY",
+    ""
+).strip()
+
+GOOGLE_GEMINI_MODEL = os.getenv(
+    "GOOGLE_GEMINI_MODEL",
+    "gemini-2.5-flash"
+).strip()
+
+GEMINI_BASE_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models"
+)
 
 
 def load_gemini_config() -> bool:
-    """Load Gemini API configuration from environment variables."""
-    return bool(GOOGLE_GEMINI_API_KEY and GOOGLE_GEMINI_MODEL)
+    return bool(
+        GOOGLE_GEMINI_API_KEY
+        and GOOGLE_GEMINI_MODEL
+    )
 
 
 def is_gemini_configured() -> bool:
     return bool(GOOGLE_GEMINI_API_KEY)
 
 
-def _clean_json_from_text(raw_text: str) -> Optional[Dict[str, Any]]:
-    start = raw_text.find('{')
-    end = raw_text.rfind('}')
-    if start == -1 or end == -1 or end <= start:
+def _clean_json_from_text(
+    raw_text: str
+) -> Optional[Dict[str, Any]]:
+
+    if not raw_text:
         return None
 
-    candidate = raw_text[start:end + 1]
+    text = raw_text.strip()
+
+    # Remove markdown code fences
+    text = re.sub(
+        r"```json\s*",
+        "",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    text = re.sub(
+        r"```\s*",
+        "",
+        text
+    )
+
+    text = text.strip()
+
+    # Try direct JSON
     try:
-        return json.loads(candidate)
-    except json.JSONDecodeError:
-        return None
+        result = json.loads(text)
+
+        if isinstance(result, dict):
+            return result
+
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Try extracting JSON object
+    start = text.find("{")
+    end = text.rfind("}")
+
+    if start != -1 and end != -1 and end > start:
+
+        candidate = text[start:end + 1]
+
+        try:
+            result = json.loads(candidate)
+
+            if isinstance(result, dict):
+                return result
+
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return None
 
 
-def _build_property_prompt(property_data: Dict[str, Any], city: str, predicted_price: int) -> str:
-    city_name = city.strip() or 'Unknown city'
+def _build_property_prompt(
+    property_data: Dict[str, Any],
+    city: str,
+    predicted_price: int
+) -> str:
+
+    city_name = city.strip() or "Unknown city"
+
     details = [
         f"Location type: {property_data.get('location', 'Urban')}",
         f"City / area: {city_name}",
@@ -51,87 +111,252 @@ def _build_property_prompt(property_data: Dict[str, Any], city: str, predicted_p
         f"Parking spaces: {property_data.get('parking_spaces', 0)}",
         f"Amenities count: {property_data.get('amenities_count', 0)}",
     ]
-    amenities = property_data.get('amenities', [])
+
+    amenities = property_data.get("amenities", [])
+
     if isinstance(amenities, list) and amenities:
-        details.append(f"Amenities: {', '.join(amenities)}")
+        details.append(
+            "Amenities: "
+            + ", ".join(str(item) for item in amenities)
+        )
 
     prompt = (
-        'You are an expert real estate advisor. ' 
-        'A property prediction model has estimated the price for a home. ' 
-        'Review the property details and the predicted price, then provide a clear response for a beginner audience. ' 
-        'Use simple language and avoid technical jargon. ' 
-        'Return only valid JSON with five keys: explanation, buy_recommendation, sell_recommendation, investment_analysis, key_factors. ' 
-        'Each value should be a short paragraph or a list for key_factors. ' 
-        'Do not include any extra text outside the JSON object.\n\n'
-        'Property details:\n'
-        f"{chr(10).join(details)}\n\n"
+        "You are an expert real estate advisor.\n\n"
+
+        "Analyze the property details and predicted price.\n"
+        "Give simple and useful advice for a beginner.\n\n"
+
+        "IMPORTANT:\n"
+        "Return ONLY one valid JSON object.\n"
+        "Do not use markdown.\n"
+        "Do not use code fences.\n"
+        "Do not add text before or after the JSON.\n\n"
+
+        "The JSON must contain exactly these keys:\n"
+        "explanation\n"
+        "buy_recommendation\n"
+        "sell_recommendation\n"
+        "investment_analysis\n"
+        "key_factors\n\n"
+
+        "Rules:\n"
+        "1. explanation must contain maximum 2 short sentences.\n"
+        "2. buy_recommendation must contain maximum 2 short sentences.\n"
+        "3. sell_recommendation must contain maximum 2 short sentences.\n"
+        "4. investment_analysis must contain maximum 2 short sentences.\n"
+        "5. key_factors must contain exactly 5 short strings.\n\n"
+
+        "Property details:\n"
+        + "\n".join(details)
+        + "\n\n"
+
         f"Predicted price: ${predicted_price}\n\n"
-        'Based on the predicted price and the property features, provide:\n'
-        '- A simple price explanation\n'
-        '- A buying recommendation\n'
-        '- A selling recommendation\n'
-        '- An investment potential analysis\n'
-        '- The most important factors affecting the price\n'
+
+        "Return exactly this JSON structure:\n"
+
+        "{"
+        '"explanation": "Short explanation",'
+        '"buy_recommendation": "Short buying advice",'
+        '"sell_recommendation": "Short selling advice",'
+        '"investment_analysis": "Short investment analysis",'
+        '"key_factors": ['
+        '"Factor 1",'
+        '"Factor 2",'
+        '"Factor 3",'
+        '"Factor 4",'
+        '"Factor 5"'
+        "]"
+        "}"
     )
+
     return prompt
 
 
 def _call_gemini_api(prompt_text: str) -> str:
+
     if not GOOGLE_GEMINI_API_KEY:
-        raise ValueError('Gemini API key is not configured.')
+        raise ValueError(
+            "Gemini API key is not configured."
+        )
 
-    api_url = f'{GEMINI_BASE_URL}/{GOOGLE_GEMINI_MODEL}:generate'
+    api_url = (
+        f"{GEMINI_BASE_URL}/"
+        f"{GOOGLE_GEMINI_MODEL}:generateContent"
+    )
+
     headers = {
-        'Authorization': f'Bearer {GOOGLE_GEMINI_API_KEY}',
-        'Content-Type': 'application/json'
+        "x-goog-api-key": GOOGLE_GEMINI_API_KEY,
+        "Content-Type": "application/json"
     }
+
     body = {
-        'prompt': {'text': prompt_text},
-        'temperature': 0.35,
-        'maxOutputTokens': 400
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt_text
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": 1500,
+            "responseMimeType": "application/json"
+        }
     }
-    response = requests.post(api_url, headers=headers, json=body, timeout=25)
+
+    response = requests.post(
+        api_url,
+        headers=headers,
+        json=body,
+        timeout=30
+    )
+
     response.raise_for_status()
+
     response_data = response.json()
-    candidates = response_data.get('candidates', [])
+
+    candidates = response_data.get(
+        "candidates",
+        []
+    )
+
     if not candidates:
-        raise ValueError('Gemini returned no response candidates.')
-    return candidates[0].get('content', '').strip()
+        raise ValueError(
+            "Gemini returned no response candidates."
+        )
+
+    parts = (
+        candidates[0]
+        .get("content", {})
+        .get("parts", [])
+    )
+
+    if not parts:
+        raise ValueError(
+            "Gemini returned an empty response."
+        )
+
+    text_parts = []
+
+    for part in parts:
+
+        text = part.get("text", "")
+
+        if text:
+            text_parts.append(text)
+
+    result = "".join(text_parts).strip()
+
+    if not result:
+        raise ValueError(
+            "Gemini returned an empty text response."
+        )
+
+    return result
 
 
-def get_property_advice(property_data: Dict[str, Any], city: str, predicted_price: int) -> Dict[str, Any]:
+def get_property_advice(
+    property_data: Dict[str, Any],
+    city: str,
+    predicted_price: int
+) -> Dict[str, Any]:
+
     if not is_gemini_configured():
+
         return {
-            'available': False,
-            'message': 'Gemini API key not configured. Add GOOGLE_GEMINI_API_KEY to your .env file.'
+            "available": False,
+            "message": (
+                "Gemini API key not configured. "
+                "Add GOOGLE_GEMINI_API_KEY "
+                "to your .env file."
+            )
         }
 
-    prompt = _build_property_prompt(property_data, city, predicted_price)
+    prompt = _build_property_prompt(
+        property_data,
+        city,
+        predicted_price
+    )
+
     try:
+
         raw_response = _call_gemini_api(prompt)
-        parsed = _clean_json_from_text(raw_response)
+
+        print(
+            "RAW GEMINI RESPONSE:",
+            repr(raw_response)
+        )
+
+        parsed = _clean_json_from_text(
+            raw_response
+        )
+
         if parsed and isinstance(parsed, dict):
+
+            key_factors = parsed.get(
+                "key_factors",
+                []
+            )
+
+            if not isinstance(key_factors, list):
+                key_factors = [str(key_factors)]
+
             return {
-                'available': True,
-                'explanation': parsed.get('explanation', ''),
-                'buy_recommendation': parsed.get('buy_recommendation', ''),
-                'sell_recommendation': parsed.get('sell_recommendation', ''),
-                'investment_analysis': parsed.get('investment_analysis', ''),
-                'key_factors': parsed.get('key_factors', []),
-                'raw_text': raw_response
+                "available": True,
+
+                "explanation": str(
+                    parsed.get(
+                        "explanation",
+                        ""
+                    )
+                ),
+
+                "buy_recommendation": str(
+                    parsed.get(
+                        "buy_recommendation",
+                        ""
+                    )
+                ),
+
+                "sell_recommendation": str(
+                    parsed.get(
+                        "sell_recommendation",
+                        ""
+                    )
+                ),
+
+                "investment_analysis": str(
+                    parsed.get(
+                        "investment_analysis",
+                        ""
+                    )
+                ),
+
+                "key_factors": key_factors,
+
+                "raw_text": raw_response
             }
 
         return {
-            'available': True,
-            'explanation': raw_response,
-            'buy_recommendation': '',
-            'sell_recommendation': '',
-            'investment_analysis': '',
-            'key_factors': [],
-            'raw_text': raw_response
+            "available": True,
+            "explanation": raw_response,
+            "buy_recommendation": "",
+            "sell_recommendation": "",
+            "investment_analysis": "",
+            "key_factors": [],
+            "raw_text": raw_response
         }
+
     except Exception as error:
+
+        print(
+            "GEMINI ERROR:",
+            repr(error)
+        )
+
         return {
-            'available': False,
-            'message': f'Gemini API error: {error}'
+            "available": False,
+            "message": f"Gemini API error: {error}"
         }
