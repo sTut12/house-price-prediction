@@ -202,7 +202,8 @@ def live_reload():
     return jsonify(get_reload_status())
 
 
+load_saved_model()
+load_gemini_config()
+
 if __name__ == '__main__':
-    load_saved_model()
-    load_gemini_config()
     app.run(debug=True, port=5000)
