@@ -6,17 +6,21 @@ from typing import Any, Dict, Optional
 import requests
 from dotenv import load_dotenv
 
+
 load_dotenv()
+
 
 GOOGLE_GEMINI_API_KEY = os.getenv(
     "GOOGLE_GEMINI_API_KEY",
     ""
 ).strip()
 
+
 GOOGLE_GEMINI_MODEL = os.getenv(
     "GOOGLE_GEMINI_MODEL",
     "gemini-2.5-flash"
 ).strip()
+
 
 GEMINI_BASE_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models"
@@ -213,7 +217,12 @@ def _call_gemini_api(prompt_text: str) -> str:
         timeout=30
     )
 
-    response.raise_for_status()
+    # Show the actual Google error instead of hiding it
+    if not response.ok:
+        raise RuntimeError(
+            f"Gemini API error {response.status_code}: "
+            f"{response.text}"
+        )
 
     response_data = response.json()
 
