@@ -239,6 +239,667 @@ function updateStats(data) {
     document.getElementById('priceValue').textContent = `$${data.predicted_price.toLocaleString()}`;
     document.getElementById('priceRange').textContent = `Range: $${data.price_range[0].toLocaleString()} – $${data.price_range[1].toLocaleString()}`;
 }
+/* =========================================================
+   PREMIUM PROPERTY INSIGHTS
+   ========================================================= */
+
+function injectPremiumStyles() {
+    if (document.getElementById('premium-feature-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'premium-feature-styles';
+
+    style.textContent = `
+        .premium-features {
+            margin-top: 24px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .premium-card {
+            background: linear-gradient(
+                145deg,
+                rgba(20, 30, 52, 0.96),
+                rgba(14, 22, 40, 0.96)
+            );
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 22px;
+            padding: 22px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.20);
+            transition: transform .25s ease, border-color .25s ease;
+        }
+
+        .premium-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255,255,255,0.18);
+        }
+
+        .premium-card.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .premium-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
+
+        .premium-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .premium-subtitle {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        .score-circle {
+            width: 82px;
+            height: 82px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            background:
+                radial-gradient(circle at center,
+                #111827 55%,
+                transparent 56%),
+                conic-gradient(
+                    #22c55e var(--score),
+                    rgba(255,255,255,.08) 0
+                );
+        }
+
+        .score-number {
+            font-size: 22px;
+            font-weight: 800;
+            color: white;
+        }
+
+        .score-label {
+            font-size: 9px;
+            color: #94a3b8;
+        }
+
+        .factor-row {
+            margin: 13px 0;
+        }
+
+        .factor-top {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #cbd5e1;
+            margin-bottom: 7px;
+        }
+
+        .factor-bar {
+            width: 100%;
+            height: 7px;
+            border-radius: 20px;
+            background: rgba(255,255,255,.08);
+            overflow: hidden;
+        }
+
+        .factor-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg,#38bdf8,#818cf8);
+            transition: width .8s ease;
+        }
+
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(5,1fr);
+            gap: 10px;
+        }
+
+        .forecast-item {
+            padding: 14px 8px;
+            border-radius: 14px;
+            background: rgba(255,255,255,.045);
+            text-align: center;
+        }
+
+        .forecast-year {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
+
+        .forecast-price {
+            font-size: 14px;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .emi-box {
+            display: grid;
+            grid-template-columns: repeat(3,1fr);
+            gap: 12px;
+        }
+
+        .emi-value {
+            background: rgba(255,255,255,.045);
+            padding: 16px;
+            border-radius: 15px;
+        }
+
+        .emi-label {
+            color: #94a3b8;
+            font-size: 11px;
+            margin-bottom: 6px;
+        }
+
+        .emi-number {
+            color: #f8fafc;
+            font-size: 17px;
+            font-weight: 700;
+        }
+
+        .health-score {
+            font-size: 38px;
+            font-weight: 800;
+            color: #22c55e;
+        }
+
+        .health-status {
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        @media(max-width: 700px) {
+            .premium-features {
+                grid-template-columns: 1fr;
+            }
+
+            .premium-card.full-width {
+                grid-column: auto;
+            }
+
+            .forecast-grid {
+                grid-template-columns: repeat(2,1fr);
+            }
+
+            .emi-box {
+                grid-template-columns: 1fr;
+            }
+        }
+    `;
+
+    document.head.appendChild(style);
+}
+
+
+/* ---------------------------------------------------------
+   CREATE PREMIUM FEATURE CONTAINER
+   --------------------------------------------------------- */
+
+function createPremiumContainer() {
+
+    let container = document.getElementById('premiumFeatures');
+
+    if (container) return container;
+
+    const resultsPanel = document.querySelector('.results-panel');
+
+    if (!resultsPanel) return null;
+
+    container = document.createElement('div');
+    container.id = 'premiumFeatures';
+    container.className = 'premium-features';
+
+    resultsPanel.appendChild(container);
+
+    return container;
+}
+
+
+/* ---------------------------------------------------------
+   1. AI DEAL SCORE
+   --------------------------------------------------------- */
+
+function calculateDealScore(data) {
+
+    const confidence = Number(data.confidence || 0);
+    const investment = Number(data.invest_score || 0);
+
+    const price = Number(data.predicted_price || 0);
+    const pricePerSqft = Number(data.price_per_sqft || 0);
+
+    let score = 50;
+
+    score += confidence * 0.20;
+    score += investment * 2;
+
+    if (pricePerSqft > 0) {
+
+        if (pricePerSqft < 300) {
+            score += 12;
+        } else if (pricePerSqft < 400) {
+            score += 8;
+        } else if (pricePerSqft < 500) {
+            score += 3;
+        } else {
+            score -= 5;
+        }
+    }
+
+    return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+
+function renderDealScore(data) {
+
+    const score = calculateDealScore(data);
+
+    return `
+        <div class="premium-card">
+
+            <div class="premium-card-header">
+
+                <div>
+                    <div class="premium-title">
+                        🏆 AI Deal Score
+                    </div>
+
+                    <div class="premium-subtitle">
+                        Overall property attractiveness
+                    </div>
+                </div>
+
+                <div
+                    class="score-circle"
+                    style="--score:${score}%"
+                >
+                    <div class="score-number">
+                        ${score}
+                    </div>
+
+                    <div class="score-label">
+                        / 100
+                    </div>
+                </div>
+
+            </div>
+
+            <div style="
+                color:#94a3b8;
+                font-size:13px;
+                line-height:1.6;
+            ">
+                ${score >= 80
+                    ? '🔥 Excellent opportunity based on the available property indicators.'
+                    : score >= 65
+                    ? '✨ Good property with several positive indicators.'
+                    : '⚠️ Review the property factors carefully before making a decision.'
+                }
+            </div>
+
+        </div>
+    `;
+}
+
+
+/* ---------------------------------------------------------
+   2. WHY THIS PRICE?
+   --------------------------------------------------------- */
+
+function renderPriceFactors(data) {
+
+    const confidence = Number(data.confidence || 0);
+    const investment = Number(data.invest_score || 0) * 10;
+
+    const growth = Number(data.yoy_growth || 0);
+
+    const growthScore = Math.max(
+        20,
+        Math.min(100, 50 + growth * 8)
+    );
+
+    const factors = [
+        {
+            name: 'Model Confidence',
+            value: confidence
+        },
+        {
+            name: 'Investment Potential',
+            value: investment
+        },
+        {
+            name: 'Market Growth',
+            value: growthScore
+        }
+    ];
+
+    return `
+        <div class="premium-card">
+
+            <div class="premium-title">
+                🔍 Why This Price?
+            </div>
+
+            <div class="premium-subtitle">
+                Key factors influencing the valuation
+            </div>
+
+            <div style="margin-top:18px">
+
+                ${factors.map(f => `
+                    <div class="factor-row">
+
+                        <div class="factor-top">
+                            <span>${f.name}</span>
+                            <span>${Math.round(f.value)}%</span>
+                        </div>
+
+                        <div class="factor-bar">
+                            <div
+                                class="factor-fill"
+                                style="width:${Math.min(100,f.value)}%"
+                            ></div>
+                        </div>
+
+                    </div>
+                `).join('')}
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+/* ---------------------------------------------------------
+   3. FIVE YEAR FORECAST
+   --------------------------------------------------------- */
+
+function renderFiveYearForecast(data) {
+
+    const price = Number(data.predicted_price || 0);
+
+    let growth = Number(data.yoy_growth || 3.6);
+
+    // Keep forecast reasonable
+    growth = Math.max(1, Math.min(15, growth));
+
+    let forecast = [];
+
+    for (let year = 1; year <= 5; year++) {
+
+        const futurePrice =
+            price * Math.pow(1 + growth / 100, year);
+
+        forecast.push({
+            year: year,
+            price: Math.round(futurePrice)
+        });
+    }
+
+    return `
+        <div class="premium-card full-width">
+
+            <div class="premium-card-header">
+
+                <div>
+
+                    <div class="premium-title">
+                        📈 5-Year Property Forecast
+                    </div>
+
+                    <div class="premium-subtitle">
+                        Estimated value using current YoY growth
+                    </div>
+
+                </div>
+
+                <div style="
+                    color:#22c55e;
+                    font-weight:700;
+                ">
+                    +${growth}% / year
+                </div>
+
+            </div>
+
+            <div class="forecast-grid">
+
+                ${forecast.map(item => `
+
+                    <div class="forecast-item">
+
+                        <div class="forecast-year">
+                            YEAR ${item.year}
+                        </div>
+
+                        <div class="forecast-price">
+                            $${item.price.toLocaleString()}
+                        </div>
+
+                    </div>
+
+                `).join('')}
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+/* ---------------------------------------------------------
+   4. EMI CALCULATOR
+   --------------------------------------------------------- */
+
+function calculateEMI(price) {
+
+    const downPayment = price * 0.20;
+
+    const loan = price - downPayment;
+
+    const annualRate = 8.5;
+
+    const monthlyRate = annualRate / 12 / 100;
+
+    const months = 20 * 12;
+
+    const emi =
+        loan *
+        monthlyRate *
+        Math.pow(1 + monthlyRate, months) /
+        (Math.pow(1 + monthlyRate, months) - 1);
+
+    return {
+        downPayment,
+        loan,
+        emi
+    };
+}
+
+
+function renderEMICalculator(data) {
+
+    const price = Number(data.predicted_price || 0);
+
+    const emiData = calculateEMI(price);
+
+    return `
+        <div class="premium-card full-width">
+
+            <div class="premium-title">
+                💰 Affordability Snapshot
+            </div>
+
+            <div class="premium-subtitle">
+                Example financing estimate · 20% down payment · 8.5% interest
+            </div>
+
+            <div class="emi-box" style="margin-top:18px">
+
+                <div class="emi-value">
+
+                    <div class="emi-label">
+                        DOWN PAYMENT
+                    </div>
+
+                    <div class="emi-number">
+                        $${Math.round(
+                            emiData.downPayment
+                        ).toLocaleString()}
+                    </div>
+
+                </div>
+
+                <div class="emi-value">
+
+                    <div class="emi-label">
+                        LOAN AMOUNT
+                    </div>
+
+                    <div class="emi-number">
+                        $${Math.round(
+                            emiData.loan
+                        ).toLocaleString()}
+                    </div>
+
+                </div>
+
+                <div class="emi-value">
+
+                    <div class="emi-label">
+                        EST. MONTHLY EMI
+                    </div>
+
+                    <div class="emi-number">
+                        $${Math.round(
+                            emiData.emi
+                        ).toLocaleString()}
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+/* ---------------------------------------------------------
+   5. PROPERTY HEALTH SCORE
+   --------------------------------------------------------- */
+
+function calculatePropertyHealth(data) {
+
+    let score = 50;
+
+    const area = Number(data.area || 0);
+    const livingArea = Number(data.living_area || 0);
+    const bedrooms = Number(data.bedrooms || 0);
+    const bathrooms = Number(data.bathrooms || 0);
+    const parking = Number(data.parking_spaces || 0);
+    const amenities = Number(data.amenities?.length || 0);
+
+    const yearBuilt = Number(
+        document.getElementById('yearBuilt')?.value || 2015
+    );
+
+    const age = new Date().getFullYear() - yearBuilt;
+
+    if (area >= 1200) score += 8;
+    if (livingArea >= 900) score += 8;
+    if (bedrooms >= 2) score += 5;
+    if (bathrooms >= 2) score += 5;
+    if (parking >= 1) score += 6;
+    if (amenities >= 3) score += 6;
+
+    if (age <= 10) score += 8;
+    else if (age > 30) score -= 8;
+
+    return Math.max(0, Math.min(100, score));
+}
+
+
+function renderPropertyHealth(data) {
+
+    const score = calculatePropertyHealth(data);
+
+    let status;
+
+    if (score >= 80) {
+        status = 'Excellent property profile';
+    } else if (score >= 65) {
+        status = 'Healthy property profile';
+    } else {
+        status = 'Needs further evaluation';
+    }
+
+    return `
+        <div class="premium-card">
+
+            <div class="premium-title">
+                🏡 Property Health
+            </div>
+
+            <div class="premium-subtitle">
+                Based on property characteristics
+            </div>
+
+            <div style="margin-top:16px">
+
+                <div class="health-score">
+                    ${score}
+                    <span style="
+                        font-size:15px;
+                        color:#94a3b8;
+                    ">
+                        /100
+                    </span>
+                </div>
+
+                <div class="health-status">
+                    ${status}
+                </div>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+/* ---------------------------------------------------------
+   RENDER ALL PREMIUM FEATURES
+   --------------------------------------------------------- */
+
+function renderPremiumFeatures(data) {
+
+    injectPremiumStyles();
+
+    const container = createPremiumContainer();
+
+    if (!container) return;
+
+    container.innerHTML = `
+
+        ${renderDealScore(data)}
+
+        ${renderPropertyHealth(data)}
+
+        ${renderPriceFactors(data)}
+
+        ${renderFiveYearForecast(data)}
+
+        ${renderEMICalculator(data)}
+
+    `;
+}
 
 function showResultsPanel() {
     const resultsPanel = document.querySelector('.results-panel');
@@ -303,6 +964,7 @@ function handlePredict(event) {
         renderAdvisorAdvice(data.ai_advice);
         animatePrice(data.predicted_price);
         showResultsPanel();
+        renderPremiumFeatures(data);
     })
     .catch(() => {
         setButtonLoading(button, false);

@@ -7,6 +7,10 @@ import requests
 from dotenv import load_dotenv
 
 
+# ============================================================
+# LOAD ENVIRONMENT VARIABLES
+# ============================================================
+
 load_dotenv()
 
 
@@ -18,7 +22,7 @@ GOOGLE_GEMINI_API_KEY = os.getenv(
 
 GOOGLE_GEMINI_MODEL = os.getenv(
     "GOOGLE_GEMINI_MODEL",
-    "gemini-2.5-flash"
+    "gemini-3.6-flash"
 ).strip()
 
 
@@ -26,6 +30,10 @@ GEMINI_BASE_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models"
 )
 
+
+# ============================================================
+# GEMINI CONFIGURATION
+# ============================================================
 
 def load_gemini_config() -> bool:
     return bool(
@@ -37,6 +45,10 @@ def load_gemini_config() -> bool:
 def is_gemini_configured() -> bool:
     return bool(GOOGLE_GEMINI_API_KEY)
 
+
+# ============================================================
+# CLEAN GEMINI JSON RESPONSE
+# ============================================================
 
 def _clean_json_from_text(
     raw_text: str
@@ -63,7 +75,10 @@ def _clean_json_from_text(
 
     text = text.strip()
 
+    # --------------------------------------------------------
     # Try direct JSON
+    # --------------------------------------------------------
+
     try:
         result = json.loads(text)
 
@@ -73,7 +88,10 @@ def _clean_json_from_text(
     except (json.JSONDecodeError, TypeError):
         pass
 
+    # --------------------------------------------------------
     # Try extracting JSON object
+    # --------------------------------------------------------
+
     start = text.find("{")
     end = text.rfind("}")
 
@@ -92,6 +110,10 @@ def _clean_json_from_text(
 
     return None
 
+
+# ============================================================
+# BUILD PROPERTY ADVISOR PROMPT
+# ============================================================
 
 def _build_property_prompt(
     property_data: Dict[str, Any],
@@ -152,6 +174,7 @@ def _build_property_prompt(
 
         "Property details:\n"
         + "\n".join(details)
+
         + "\n\n"
 
         f"Predicted price: ${predicted_price}\n\n"
@@ -176,6 +199,10 @@ def _build_property_prompt(
     return prompt
 
 
+# ============================================================
+# CALL GEMINI API
+# ============================================================
+
 def _call_gemini_api(prompt_text: str) -> str:
 
     if not GOOGLE_GEMINI_API_KEY:
@@ -183,14 +210,18 @@ def _call_gemini_api(prompt_text: str) -> str:
             "Gemini API key is not configured."
         )
 
+    # Use Gemini 3.6 Flash
+    model = GOOGLE_GEMINI_MODEL or "gemini-3.6-flash"
+
+    # Correct Gemini REST endpoint
     api_url = (
         f"{GEMINI_BASE_URL}/"
-        f"{GOOGLE_GEMINI_MODEL}:generateContent"
+        f"{model}:generateContent"
     )
 
     headers = {
+        "Content-Type": "application/json",
         "x-goog-api-key": GOOGLE_GEMINI_API_KEY,
-        "Content-Type": "application/json"
     }
 
     body = {
@@ -204,27 +235,70 @@ def _call_gemini_api(prompt_text: str) -> str:
             }
         ],
         "generationConfig": {
-            "temperature": 0.1,
             "maxOutputTokens": 1500,
             "responseMimeType": "application/json"
         }
     }
 
-    response = requests.post(
-        api_url,
-        headers=headers,
-        json=body,
-        timeout=30
-    )
+    # --------------------------------------------------------
+    # Make API request
+    # --------------------------------------------------------
 
-    # Show the actual Google error instead of hiding it
+    try:
+
+        response = requests.post(
+            api_url,
+            headers=headers,
+            json=body,
+            timeout=(10, 45)
+        )
+
+    except requests.exceptions.Timeout as error:
+
+        raise RuntimeError(
+            f"Gemini connection timed out: {error}"
+        )
+
+    except requests.exceptions.ConnectionError as error:
+
+        raise RuntimeError(
+            f"Could not connect to Gemini API: {error}"
+        )
+
+    except requests.exceptions.RequestException as error:
+
+        raise RuntimeError(
+            f"Gemini network error: {error}"
+        )
+
+    # --------------------------------------------------------
+    # Check API response
+    # --------------------------------------------------------
+
     if not response.ok:
+
         raise RuntimeError(
             f"Gemini API error {response.status_code}: "
             f"{response.text}"
         )
 
-    response_data = response.json()
+    # --------------------------------------------------------
+    # Parse JSON response
+    # --------------------------------------------------------
+
+    try:
+
+        response_data = response.json()
+
+    except ValueError:
+
+        raise RuntimeError(
+            f"Gemini returned invalid JSON: {response.text}"
+        )
+
+    # --------------------------------------------------------
+    # Get candidates
+    # --------------------------------------------------------
 
     candidates = response_data.get(
         "candidates",
@@ -232,9 +306,14 @@ def _call_gemini_api(prompt_text: str) -> str:
     )
 
     if not candidates:
+
         raise ValueError(
             "Gemini returned no response candidates."
         )
+
+    # --------------------------------------------------------
+    # Get response parts
+    # --------------------------------------------------------
 
     parts = (
         candidates[0]
@@ -243,22 +322,33 @@ def _call_gemini_api(prompt_text: str) -> str:
     )
 
     if not parts:
+
         raise ValueError(
             "Gemini returned an empty response."
         )
+
+    # --------------------------------------------------------
+    # Extract text
+    # --------------------------------------------------------
 
     text_parts = []
 
     for part in parts:
 
-        text = part.get("text", "")
+        text = part.get(
+            "text",
+            ""
+        )
 
         if text:
             text_parts.append(text)
 
-    result = "".join(text_parts).strip()
+    result = "".join(
+        text_parts
+    ).strip()
 
     if not result:
+
         raise ValueError(
             "Gemini returned an empty text response."
         )
@@ -266,16 +356,25 @@ def _call_gemini_api(prompt_text: str) -> str:
     return result
 
 
+# ============================================================
+# GET PROPERTY ADVICE
+# ============================================================
+
 def get_property_advice(
     property_data: Dict[str, Any],
     city: str,
     predicted_price: int
 ) -> Dict[str, Any]:
 
+    # --------------------------------------------------------
+    # Check Gemini configuration
+    # --------------------------------------------------------
+
     if not is_gemini_configured():
 
         return {
             "available": False,
+
             "message": (
                 "Gemini API key not configured. "
                 "Add GOOGLE_GEMINI_API_KEY "
@@ -283,20 +382,34 @@ def get_property_advice(
             )
         }
 
+    # --------------------------------------------------------
+    # Build prompt
+    # --------------------------------------------------------
+
     prompt = _build_property_prompt(
         property_data,
         city,
         predicted_price
     )
 
+    # --------------------------------------------------------
+    # Call Gemini
+    # --------------------------------------------------------
+
     try:
 
-        raw_response = _call_gemini_api(prompt)
+        raw_response = _call_gemini_api(
+            prompt
+        )
 
         print(
             "RAW GEMINI RESPONSE:",
             repr(raw_response)
         )
+
+        # ----------------------------------------------------
+        # Parse JSON
+        # ----------------------------------------------------
 
         parsed = _clean_json_from_text(
             raw_response
@@ -309,8 +422,14 @@ def get_property_advice(
                 []
             )
 
-            if not isinstance(key_factors, list):
-                key_factors = [str(key_factors)]
+            if not isinstance(
+                key_factors,
+                list
+            ):
+
+                key_factors = [
+                    str(key_factors)
+                ]
 
             return {
                 "available": True,
@@ -348,15 +467,29 @@ def get_property_advice(
                 "raw_text": raw_response
             }
 
+        # ----------------------------------------------------
+        # Fallback if JSON parsing fails
+        # ----------------------------------------------------
+
         return {
             "available": True,
+
             "explanation": raw_response,
+
             "buy_recommendation": "",
+
             "sell_recommendation": "",
+
             "investment_analysis": "",
+
             "key_factors": [],
+
             "raw_text": raw_response
         }
+
+    # --------------------------------------------------------
+    # Handle errors
+    # --------------------------------------------------------
 
     except Exception as error:
 
@@ -367,5 +500,8 @@ def get_property_advice(
 
         return {
             "available": False,
-            "message": f"Gemini API error: {error}"
+
+            "message": (
+                f"Gemini API error: {error}"
+            )
         }
